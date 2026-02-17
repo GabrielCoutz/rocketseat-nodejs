@@ -1,29 +1,27 @@
 import http from 'node:http'
 import { json } from '../src/middlewares/json.js'
+import { Database } from '../src/database.js'
+import { routes } from '../src/routes.js'
+import { extractQueryParams } from '../src/utils/extract-query-params.js'
 
-const users = []
+const database = new Database()
 
 const server = http.createServer(async (req, res) => {
   const { method, url } = req
 
   await json(req, res)
 
-  if (method === 'GET' && url === '/users') {
-    return res
-      .setHeader('Content-type', 'application/json')
-      .end(JSON.stringify(users))
-  }
+  const route = routes.find(route => route.method === method && route.path.test(url))
 
-  if (method === 'POST' && url === '/users') {
-    const { name, email } = req.body
+  if (route) {
+    const routeParams = req.url.match(route.path)
 
-    users.push({
-      id: 1,
-      name,
-      email,
-    })
+    const {query, ...params} = routeParams.groups
 
-    return res.writeHead(201).end()
+    req.params = params
+    req.query = query ? extractQueryParams(query) : {}
+
+    return route.handler(req, res)
   }
 
   return res.writeHead(404).end()
